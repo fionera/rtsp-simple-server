@@ -11,6 +11,7 @@ import (
 
 	"github.com/aler9/gortsplib"
 	"github.com/aler9/gortsplib/pkg/base"
+	"github.com/aler9/rtsp-simple-server/internal/metrics"
 
 	"github.com/aler9/rtsp-simple-server/internal/conf"
 	"github.com/aler9/rtsp-simple-server/internal/externalcmd"
@@ -807,6 +808,7 @@ func (pa *Path) OnReadPublisherRemove(req readpublisher.RemoveReq) {
 
 // OnFrame is called by a readpublisher
 func (pa *Path) OnFrame(trackID int, streamType gortsplib.StreamType, payload []byte) {
+	metrics.ReceivedDataCounter.Add(float64(len(payload)))
 	pa.sourceStream.WriteFrame(trackID, streamType, payload)
 
 	pa.nonRTSPReaders.forwardFrame(trackID, streamType, payload)

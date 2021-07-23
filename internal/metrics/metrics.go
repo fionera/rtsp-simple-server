@@ -2,21 +2,16 @@ package metrics
 
 import (
 	"context"
-	"io"
 	"net"
 	"net/http"
-	"strconv"
 	"sync/atomic"
-	"time"
 
 	"github.com/aler9/rtsp-simple-server/internal/logger"
 	"github.com/aler9/rtsp-simple-server/internal/stats"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-func formatMetric(key string, value int64, nowUnix int64) string {
-	return key + " " + strconv.FormatInt(value, 10) + " " +
-		strconv.FormatInt(nowUnix, 10) + "\n"
-}
 
 // Parent is implemented by program.
 type Parent interface {
@@ -32,27 +27,46 @@ type Metrics struct {
 	server   *http.Server
 }
 
+var (
+	rtspClientsDesc = prometheus.NewDesc("rtsp_clients", "A Gauge displaying the currently connected client", []string{"state"}, nil)
+	rtspSourcesDesc = prometheus.NewDesc("rtsp_sources", "A Gauge displaying the currently connected sources", []string{"type", "state"}, nil)
+
+	ReceivedDataCounter = promauto.NewCounter(prometheus.CounterOpts{Name: "received_data", Help: "The Sum of all transmitted data"})
+)
+
+func (m *Metrics) Describe(descs chan<- *prometheus.Desc) {
+	descs <- rtspClientsDesc
+	descs <- rtspSourcesDesc
+}
+
+func (m *Metrics) Collect(metrics chan<- prometheus.Metric) {
+	metrics <- prometheus.MustNewConstMetric(rtspClientsDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountPublishers)), "publishing")
+	metrics <- prometheus.MustNewConstMetric(rtspClientsDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountReaders)), "reading")
+	metrics <- prometheus.MustNewConstMetric(rtspSourcesDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountSourcesRTSP)), "rtsp", "idle")
+	metrics <- prometheus.MustNewConstMetric(rtspSourcesDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountSourcesRTSPRunning)), "rtsp", "running")
+	metrics <- prometheus.MustNewConstMetric(rtspSourcesDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountSourcesRTMP)), "rtmp", "idle")
+	metrics <- prometheus.MustNewConstMetric(rtspSourcesDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(m.stats.CountSourcesRTMPRunning)), "rtmp", "running")
+}
+
 // New allocates a metrics.
 func New(
 	address string,
 	stats *stats.Stats,
 	parent Parent,
 ) (*Metrics, error) {
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, err
-	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
 
 	m := &Metrics{
-		stats:    stats,
-		listener: listener,
+		stats: stats,
+		server: &http.Server{
+			Addr:    address,
+			Handler: mux,
+		},
 	}
 
-	m.mux = http.NewServeMux()
-	m.mux.HandleFunc("/metrics", m.onMetrics)
-
-	m.server = &http.Server{
-		Handler: m.mux,
+	if err := prometheus.Register(m); err != nil {
+		return nil, err
 	}
 
 	parent.Log(logger.Info, "[metrics] opened on "+address)
@@ -67,39 +81,8 @@ func (m *Metrics) Close() {
 }
 
 func (m *Metrics) run() {
-	err := m.server.Serve(m.listener)
+	err := m.server.ListenAndServe()
 	if err != http.ErrServerClosed {
 		panic(err)
 	}
-}
-
-func (m *Metrics) onMetrics(w http.ResponseWriter, req *http.Request) {
-	nowUnix := time.Now().UnixNano() / 1000000
-
-	countPublishers := atomic.LoadInt64(m.stats.CountPublishers)
-	countReaders := atomic.LoadInt64(m.stats.CountReaders)
-	countSourcesRTSP := atomic.LoadInt64(m.stats.CountSourcesRTSP)
-	countSourcesRTSPRunning := atomic.LoadInt64(m.stats.CountSourcesRTSPRunning)
-	countSourcesRTMP := atomic.LoadInt64(m.stats.CountSourcesRTMP)
-	countSourcesRTMPRunning := atomic.LoadInt64(m.stats.CountSourcesRTMPRunning)
-
-	out := ""
-
-	out += formatMetric("rtsp_clients{state=\"publishing\"}",
-		countPublishers, nowUnix)
-	out += formatMetric("rtsp_clients{state=\"reading\"}",
-		countReaders, nowUnix)
-
-	out += formatMetric("rtsp_sources{type=\"rtsp\",state=\"idle\"}",
-		countSourcesRTSP-countSourcesRTSPRunning, nowUnix)
-	out += formatMetric("rtsp_sources{type=\"rtsp\",state=\"running\"}",
-		countSourcesRTSPRunning, nowUnix)
-
-	out += formatMetric("rtsp_sources{type=\"rtmp\",state=\"idle\"}",
-		countSourcesRTMP-countSourcesRTMPRunning, nowUnix)
-	out += formatMetric("rtsp_sources{type=\"rtmp\",state=\"running\"}",
-		countSourcesRTMPRunning, nowUnix)
-
-	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, out)
 }
