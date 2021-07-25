@@ -149,9 +149,9 @@ outer:
 
 			// remove paths associated with a conf which doesn't exist anymore
 			// or has changed
-			for name, pa := range pm.paths {
+			for source, pa := range pm.paths {
 				if pathConf, ok := pm.pathConfs[pa.ConfName()]; !ok || pathConf != pa.Conf() {
-					delete(pm.paths, name)
+					delete(pm.paths, source)
 					pa.Close()
 				}
 			}
@@ -163,7 +163,7 @@ outer:
 			if pmpa, ok := pm.paths[pa.Conf().Source]; !ok || pmpa != pa {
 				continue
 			}
-			delete(pm.paths, pa.Name())
+			delete(pm.paths, pa.Conf().Source)
 			pa.Close()
 
 		case req := <-pm.rpDescribe:
