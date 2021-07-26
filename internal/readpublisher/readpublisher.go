@@ -77,6 +77,7 @@ type DescribeReq struct {
 	Res                 chan DescribeRes
 	RemoteAddr          string
 	LocalAddr           string
+	Req                 *base.Request
 }
 
 // SetupPlayRes is a setup/play response.
@@ -95,6 +96,7 @@ type SetupPlayReq struct {
 	Res                 chan SetupPlayRes
 	RemoteAddr          string
 	LocalAddr           string
+	Req                 *base.Request
 }
 
 // AnnounceRes is a announce response.
