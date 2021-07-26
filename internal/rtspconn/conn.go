@@ -143,6 +143,7 @@ func (c *Conn) OnDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx) (*base.Resp
 		Res:        resc,
 		RemoteAddr: c.conn.NetConn().RemoteAddr().String(),
 		LocalAddr:  c.conn.NetConn().LocalAddr().String(),
+		Req:        ctx.Req,
 	})
 	res := <-resc
 

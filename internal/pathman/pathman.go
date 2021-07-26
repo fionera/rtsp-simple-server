@@ -177,6 +177,9 @@ outer:
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  req.LocalAddr,
 				Path:       req.PathName,
+				Method:     req.Req.Method,
+				Header:     req.Req.Header,
+				URL:        req.Req.URL.String(),
 			})
 			if err != nil {
 				req.Res <- readpublisher.DescribeRes{Err: err}
@@ -225,6 +228,9 @@ outer:
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  req.LocalAddr,
 				Path:       req.PathName,
+				Method:     req.Req.Method,
+				Header:     req.Req.Header,
+				URL:        req.Req.URL.String(),
 			})
 			if err != nil {
 				req.Res <- readpublisher.SetupPlayRes{Err: err}
@@ -416,9 +422,12 @@ func (pm *PathManager) authenticate(
 }
 
 type PlayRequestPayload struct {
-	RemoteAddr string `json:"remote_addr"`
-	LocalAddr  string `json:"local_addr"`
-	Path       string `json:"path"`
+	RemoteAddr string      `json:"remote_addr"`
+	LocalAddr  string      `json:"local_addr"`
+	Path       string      `json:"path"`
+	Method     base.Method `json:"method"`
+	Header     base.Header `json:"header"`
+	URL        string      `json:"url"`
 }
 
 type PlayRequestAction struct {

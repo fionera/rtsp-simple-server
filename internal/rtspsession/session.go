@@ -199,6 +199,7 @@ func (s *Session) OnSetup(c *rtspconn.Conn, ctx *gortsplib.ServerHandlerOnSetupC
 			Res:        resc,
 			RemoteAddr: ctx.Conn.NetConn().RemoteAddr().String(),
 			LocalAddr:  ctx.Conn.NetConn().LocalAddr().String(),
+			Req:        ctx.Req,
 		})
 		res := <-resc
 
